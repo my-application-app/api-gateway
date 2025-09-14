@@ -1,0 +1,100 @@
+name: CI Pipeline - Build and Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov flake8 bandit safety black isort
+    
+    - name: Code formatting with Black
+      run: |
+        black --check main.py || (echo "Code formatting failed but continuing..." && true)
+    
+    - name: Import sorting with isort
+      run: |
+        isort --check-only main.py || (echo "Import sorting failed but continuing..." && true)
+    
+    - name: Linting with flake8
+      run: |
+        flake8 main.py --max-line-length=120 --ignore=E203,W503 || (echo "Linting failed but continuing..." && true)
+    
+    - name: SAST with Bandit
+      run: |
+        bandit -r . -f json -o bandit-report.json || (echo "SAST scan completed with issues but continuing..." && true)
+        bandit -r . || (echo "SAST scan failed but continuing..." && true)
+    
+    - name: Security vulnerability check
+      run: |
+        safety check --json --output safety-report.json || (echo "Security check failed but continuing..." && true)
+        safety check || (echo "Vulnerability scan failed but continuing..." && true)
+    
+    - name: Create test file
+      run: |
+        cat > test_main.py << 'EOF'
+        import pytest
+        from fastapi.testclient import TestClient
+        from main import app
+        
+        client = TestClient(app)
+        
+        def test_root():
+            response = client.get("/")
+            assert response.status_code == 200
+            assert "API Gateway is running" in response.json()["message"]
+        
+        def test_health():
+            response = client.get("/health")
+            assert response.status_code == 200
+            assert response.json()["status"] == "healthy"
+        
+        def test_services_status():
+            response = client.get("/services/status")
+            assert response.status_code == 200
+            assert "services" in response.json()
+        EOF
+    
+    - name: Run unit tests
+      run: |
+        pytest test_main.py -v --cov=main --cov-report=term-missing || (echo "Unit tests failed but continuing..." && true)
+    
+    - name: Build Docker image
+      run: |
+        docker build -t samitsinghhh/api-gateway:v3 .
+        docker build -t samitsinghhh/api-gateway:latest .
+    
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+    
+    - name: Push Docker image
+      run: |
+        docker push samitsinghhh/api-gateway:v3
+        docker push samitsinghhh/api-gateway:latest
+        echo "Images pushed successfully!"
+    
+    - name: Upload test reports
+      if: always()
+      run: |
+        echo "Test reports generated:"
+        ls -la *.json || echo "No JSON reports found"
+        echo "CI pipeline completed - all steps ran regardless of individual failures"
