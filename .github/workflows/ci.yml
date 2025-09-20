@@ -27,30 +27,30 @@ jobs:
     
     - name: Code formatting with Black
       run: |
-        black --check main.py || echo "⚠️ Code formatting issues found but continuing..."
-        echo "✅ Black formatting check completed"
+        black --check main.py || echo " Code formatting issues found but continuing..."
+        echo " Black formatting check completed"
     
     - name: Import sorting with isort
       run: |
-        isort --check-only main.py || echo "⚠️ Import sorting issues found but continuing..."
-        echo "✅ Import sorting check completed"
+        isort --check-only main.py || echo " Import sorting issues found but continuing..."
+        echo " Import sorting check completed"
     
     - name: Linting with flake8
       run: |
         flake8 main.py --max-line-length=120 --ignore=E203,W503 --exit-zero
-        echo "✅ Linting completed"
+        echo " Linting completed"
     
     - name: Security scan with Bandit
       run: |
         bandit -r . -f json -o bandit-report.json --exit-zero || true
-        bandit -r . --exit-zero || echo "⚠️ Security scan found issues but continuing..."
-        echo "✅ Security scan completed"
+        bandit -r . --exit-zero || echo " Security scan found issues but continuing..."
+        echo " Security scan completed"
     
     - name: Vulnerability check with Safety
       run: |
         safety check --json --output safety-report.json --exit-zero || true
-        safety check --exit-zero || echo "⚠️ Vulnerability scan found issues but continuing..."
-        echo "✅ Vulnerability check completed"
+        safety check --exit-zero || echo " Vulnerability scan found issues but continuing..."
+        echo " Vulnerability check completed"
     
     - name: Create basic test file
       run: |
@@ -72,8 +72,8 @@ jobs:
     
     - name: Run unit tests
       run: |
-        pytest test_main.py -v --tb=short || echo "⚠️ Some tests failed but continuing..."
-        echo "✅ Unit tests completed"
+        pytest test_main.py -v --tb=short || echo " Some tests failed but continuing..."
+        echo " Unit tests completed"
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -89,14 +89,14 @@ jobs:
       run: |
         docker build -t samitsinghhh/api-gateway:${{ github.sha }} .
         docker build -t samitsinghhh/api-gateway:latest .
-        echo "✅ Docker build completed"
+        echo " Docker build completed"
     
     - name: Push Docker image
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
         docker push samitsinghhh/api-gateway:${{ github.sha }}
         docker push samitsinghhh/api-gateway:latest
-        echo "✅ Docker push completed"
+        echo " Docker push completed"
     
     - name: Upload reports as artifacts
       if: always()
@@ -110,5 +110,5 @@ jobs:
     
     - name: CI Summary
       run: |
-        echo "🎉 CI Pipeline completed successfully!"
-        echo "📊 All checks ran with no blocking failures"
+        echo " CI Pipeline completed successfully!"
+        echo " All checks ran with no blocking failures"
