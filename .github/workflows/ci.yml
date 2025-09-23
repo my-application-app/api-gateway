@@ -46,8 +46,8 @@ jobs:
     
     - name: Create tests and run complete test suite
       run: |
-        echo "🧪 Creating test file and running complete test suite..." && \
-        cat > test_main.py << 'EOF' && \
+        echo "🧪 Creating test file and running complete test suite..."
+        cat > test_main.py << 'EOF'
         import pytest
         from fastapi.testclient import TestClient
         from main import app
@@ -76,7 +76,7 @@ jobs:
             response = client.post("/chat", json={})
             assert response.status_code == 422
         EOF
-        pytest test_main.py -v --tb=short --cov=main --cov-report=term-missing || echo "⚠️ Some tests failed but continuing..." && \
+        pytest test_main.py -v --tb=short --cov=main --cov-report=term-missing || echo "⚠️ Some tests failed but continuing..."
         echo "✅ All tests completed"
     
     - name: Setup Docker Buildx
