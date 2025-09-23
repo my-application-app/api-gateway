@@ -1,50 +1,47 @@
-# Stage 1: Builder
-FROM python:3.11-slim AS builder
+# Multi-stage build optimized for Docker best practices
+FROM python:3.11-slim as builder
 
-# Set working directory
+# Set build-time environment variables and install dependencies in single layer
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install build dependencies, copy requirements, and install Python packages
 WORKDIR /app
-
-# Install system dependencies
+COPY requirements.txt . 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc && \
-    rm -rf /var/lib/apt/lists/*
+    pip install --user --no-cache-dir -r requirements.txt && \
+    find /root/.local -name "*.pyc" -delete && \
+    find /root/.local -name "__pycache__" -type d -exec rm -rf {} + || true && \
+    apt-get purge -y gcc && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Copy requirements
-COPY requirements.txt .
+# Production stage
+FROM python:3.11-slim as production
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Set runtime environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/home/appuser/.local/bin:$PATH"
 
-# Stage 2: Runtime
-FROM python:3.11-slim
+# Create user and setup directories
+RUN groupadd -r appuser && \
+    useradd -r -g appuser appuser && \
+    mkdir -p /app /home/appuser && \
+    chown -R appuser:appuser /app /home/appuser
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Set working directory
-WORKDIR /app
-
-# Copy Python dependencies from builder
-COPY --from=builder /root/.local /home/appuser/.local
-RUN chown -R appuser:appuser /home/appuser/.local
+# Copy dependencies from builder stage
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 
 # Copy application code
-COPY --chown=appuser:appuser main.py .
+COPY --chown=appuser:appuser main.py /app/
 
-# Set Python path
-ENV PATH=/home/appuser/.local/bin:$PATH
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Switch to non-root user
+# Switch to non-root user, set working directory, and expose port
 USER appuser
-
-# Expose port
+WORKDIR /app
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
-
-# Run the application
+# Use exec form for better signal handling
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
